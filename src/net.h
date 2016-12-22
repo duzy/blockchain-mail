@@ -154,6 +154,12 @@ public:
 
     void PushMessage(CNode* pnode, CSerializedNetMsg&& msg);
 
+    bool HasNodes() const
+    {
+        LOCK(cs_vNodes);
+        return !vNodes.empty();
+    }
+
     template<typename Callable>
     bool ForEachNodeContinueIf(Callable&& func)
     {
