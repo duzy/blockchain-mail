@@ -86,8 +86,6 @@ static void MailTalkIn(struct bufferevent *be, void *pdata)
     return;
   }
 
-# if 1
-
   // TODO: improve mail conversation processing
 
   if (mailConv->isReading()) {
@@ -265,41 +263,6 @@ static void MailTalkIn(struct bufferevent *be, void *pdata)
     LogPrint("mail", "MAIL FROM: %s\n", mailConv->sender.c_str());
     return;
   }
-  
-#else
-  
-  auto chs = std::size_t(0);
-  UniqueCStr s(evbuffer_readln(input, &chs, EVBUFFER_EOL_CRLF));
-  LogPrint("mail", "%s (%d/%d)\n", s.get(), chs, len);
-
-  if (strncmp(s.get(), "DATA", 4) == 0) {
-    evbuffer_add_printf(output, "354 Start mail input; end with <CRLF>.<CRLF>\r\n");
-    // TODO: switch to data transfer mode
-    return;
-  }
-  
-  if (strncmp(s.get(), "EHLO ", 5) == 0 || strncmp(s.get(), "HELO ", 5)) {
-    auto nodeName = "node-xxx";  // TODO: node name
-    auto greetString = "hi there"; // TODO: get greet streag from bitcoind.conf
-    evbuffer_add_printf(output, "250-%s %s\r\n", nodeName, greetString);
-    evbuffer_add_printf(output, "250-%s\r\n", "8BITMIME");
-    //evbuffer_add_printf(output, "250-%s\r\n", "SIZE");
-    //evbuffer_add_printf(output, "250-%s\r\n", "DSN");
-    evbuffer_add_printf(output, "250 %s\r\n", "HELP");
-    return;
-  }
-  
-  if (strncmp(s.get(), "RCPT TO:", 8) == 0) {
-    evbuffer_add_printf(output, "250 %s\r\n", "OK");
-    return;
-  }
-
-  if (strncmp(s.get(), "MAIL FROM:", 10) == 0) {
-    evbuffer_add_printf(output, "250 %s\r\n", "OK");
-    return;
-  }
-  
-#endif
 }
 
 static void MailTalkEvent(struct bufferevent *be, short what, void *pdata)
