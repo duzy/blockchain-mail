@@ -248,7 +248,6 @@ void BlockAssembler::BitcoinMiner()
                         assert(hash == pblock->GetHash());
 
                         //SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                        LogPrintf("BitcoinMiner:\n");
                         LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", hash.GetHex(), hashTarget.GetHex());
                         ProcessBlockFound(pblock);
                         //SetThreadPriority(THREAD_PRIORITY_LOWEST);

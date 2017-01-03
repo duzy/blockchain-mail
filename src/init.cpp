@@ -27,6 +27,7 @@
 #include "policy/policy.h"
 #include "rpc/server.h"
 #include "rpc/register.h"
+#include "mail/server.h"
 #include "script/standard.h"
 #include "script/sigcache.h"
 #include "scheduler.h"
@@ -72,6 +73,7 @@ static const bool DEFAULT_PROXYRANDOMIZE = true;
 static const bool DEFAULT_REST_ENABLE = false;
 static const bool DEFAULT_DISABLE_SAFEMODE = false;
 static const bool DEFAULT_STOPAFTERBLOCKIMPORT = false;
+static const bool DEFAULT_MAIL_ENABLE = true;
 
 std::unique_ptr<CConnman> g_connman;
 std::unique_ptr<PeerLogicValidation> peerLogic;
@@ -172,6 +174,7 @@ static std::unique_ptr<ECCVerifyHandle> globalVerifyHandle;
 void Interrupt(boost::thread_group& threadGroup)
 {
     InterruptHTTPServer();
+    InterruptMailServer();
     InterruptHTTPRPC();
     InterruptRPC();
     InterruptREST();
@@ -198,6 +201,7 @@ void Shutdown()
     StopREST();
     StopRPC();
     StopHTTPServer();
+    StopMailServer();
 #ifdef ENABLE_WALLET
     if (pwalletMain)
         pwalletMain->Flush(false);
@@ -493,6 +497,12 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-rpcservertimeout=<n>", strprintf("Timeout during HTTP requests (default: %d)", DEFAULT_HTTP_SERVER_TIMEOUT));
     }
 
+    strUsage += HelpMessageGroup(_("Mail server options:"));
+    strUsage += HelpMessageOpt("-mail", _("Accept mails"));
+    strUsage += HelpMessageOpt("-mailtls", _("Accept mails via SSL/TLS channel (implies -mail option)"));
+    strUsage += HelpMessageOpt("-mailbind=<addr>", _("Bind to given address to listen for mails. Use [host]:port notation for IPv6. This option can be specified multiple times (default: bind to all interfaces)"));
+    strUsage += HelpMessageOpt("-mailport=<port>", strprintf(_("Listen for mails on <port> (default: %u or testnet: %u)"), BaseParams(CBaseChainParams::MAIN).MailPort(), BaseParams(CBaseChainParams::TESTNET).MailPort()));
+
     return strUsage;
 }
 
@@ -699,6 +709,8 @@ bool AppInitServers(boost::thread_group& threadGroup)
     if (GetBoolArg("-rest", DEFAULT_REST_ENABLE) && !StartREST())
         return false;
     if (!StartHTTPServer())
+        return false;
+    if (GetBoolArg("-mail", DEFAULT_MAIL_ENABLE) && !StartMailServer())
         return false;
     return true;
 }

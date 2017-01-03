@@ -33,6 +33,7 @@ public:
     CBaseMainParams()
     {
         nRPCPort = 8181;
+        nMailPort = 8125;
     }
 };
 static CBaseMainParams mainParams;
@@ -46,6 +47,7 @@ public:
     CBaseTestNetParams()
     {
         nRPCPort = 18181;
+        nMailPort = 18125;
         strDataDir = "testnet3";
     }
 };
@@ -60,6 +62,7 @@ public:
     CBaseRegTestParams()
     {
         nRPCPort = 18181;
+        nMailPort = 18125;
         strDataDir = "regtest";
     }
 };
