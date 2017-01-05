@@ -1,10 +1,11 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin Core developers
+//               2016-2017 Duzy Chan
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "mail/server.h"
-#include "util.h"
+#include "mail/receiver.h"
 #include <future>
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
@@ -12,171 +13,10 @@
 #include <event2/event.h>
 #include <event2/listener.h>
 #include <event2/thread.h>
-#include <boost/filesystem.hpp>
 
 //
 // This implementation compies to https://tools.ietf.org/html/rfc5321.
 // 
-
-struct UniqueCStrDeleter
-{
-  void operator()(char *s) { free(s); }
-};
-
-struct UniqueFileDeleter
-{
-  void operator()(FILE *f) { fclose(f); }
-};
-
-using UniqueCStr = std::unique_ptr<char, UniqueCStrDeleter>;
-using UniqueFile = std::unique_ptr<FILE, UniqueFileDeleter>;
-
-enum class MailState
-{
-  CREATING,
-  READING,
-  DONE,
-};
-
-// Maintains a conversation with a client.
-struct MailReceiver
-{
-  MailState state;
-  std::string domain;
-  std::string sender;
-  std::string recpt;
-  std::string parameters;
-
-  UniqueFile file;
-
-  // TODO: encapsulate a mail conversation
-
-  MailReceiver()
-    : state(MailState::CREATING)
-    , domain()
-    , sender()
-    , recpt()
-    , file()
-  {}
-
-  ~MailReceiver()
-  {
-    LogPrint("mail", "Mail done %s -> %s\n", sender.c_str(), recpt.c_str());
-  }
-
-  bool isCreating() const { return state == MailState::CREATING; }
-  bool isReading() const { return state == MailState::READING; }
-  bool isDone() const { return state == MailState::DONE; }
-
-  bool decodeMailboxNotation(const std::string &s, std::string &name, std::string &host, std::string *params = nullptr);
-  bool decodeSender();
-  bool decodeRecpt();
-
-  bool startReading();
-  std::size_t write(const char *s, std::size_t sz);
-};
-
-bool MailReceiver::decodeMailboxNotation(const std::string &s, std::string &name, std::string &host, std::string *params)
-{
-  auto posOpen = s.find('<');
-  if (posOpen == std::string::npos) {
-    return false;
-  }
-  auto posClose = s.find('>', posOpen);
-  if (posClose == std::string::npos) {
-    return false;
-  }
-  auto posSep = s.find(':', posOpen);
-  if (posSep != std::string::npos) {
-    // TODO: deal with at-domain, e.g. <@a.foo.org,@b.foo.org:xxx@foo.org>
-    //auto t = s.substr(posOpen+1, posSep-posOpen-1);
-  } else {
-    posSep = posOpen;
-  }
-  auto posAt = s.find('@', posSep);
-  if (posAt == std::string::npos) {
-    name = s.substr(posOpen+1, posClose-posSep-1);
-  } else {
-    name = s.substr(posOpen+1, posAt-posSep-1);
-    host = s.substr(posAt+1, posClose-posAt-1);
-  }
-  if (params) {
-    // TODO: decode parameters
-  }
-  return true;
-}
-
-bool MailReceiver::decodeSender()
-{
-  std::string name, host, params;
-  if (decodeMailboxNotation(sender, name, host, &params)) {
-    parameters = params;
-    sender = name; // TODO: formal format of `sender'
-    return true;
-  } else {
-    parameters.clear();
-    sender.clear();
-  }
-  return false;
-}
-
-bool MailReceiver::decodeRecpt()
-{
-  std::string name, host, params;
-  if (decodeMailboxNotation(recpt, name, host, &params)) {
-    // TODO: deal with parameters
-    recpt = name; // TODO: formal format of `sender'
-    return true;
-  } else {
-    recpt.clear();
-  }
-  return false;
-}
-
-bool MailReceiver::startReading()
-{
-  namespace fs = boost::filesystem;
-  
-  if (MailState::CREATING != state || recpt.empty() || sender.empty()) {
-    LogPrint("mail", "mail not ready to read\n"
-             "Client: %s\nSender: %s\nRecipient: %s\n"
-             , domain.c_str(), sender.c_str(), recpt.c_str());
-    return false;
-  }
-
-  // TODO: check if sender address is in the wallet
-
-  // TODO: specific better mail storage
-
-  boost::filesystem::path path = GetDataDir() / "mail";
-  path /= sender; // TODO: check sender address
-  path /= recpt; // TODO: check recpt address
-  fs::create_directories(path);
-  
-  path /= "message.txt"; // TODO: append message-id
-  
-  auto filename(path.string());
-  
-  LogPrint("mail", "Reading message %s\n"
-           "Client: %s\nSender: %s\nRecipient: %s\n"
-           , filename.c_str(), domain.c_str()
-           , sender.c_str(), recpt.c_str());
-  
-  file.reset(fopen(filename.c_str(), "w+"));
-  if (file) {
-    state = MailState::READING;
-  } else {
-    LogPrint("mail", "cannot write to %s\n"
-             "Client: %s\nSender: %s\nRecipient: %s\n"
-             , filename.c_str(), domain.c_str(), sender.c_str(), recpt.c_str());
-  }
-  return MailState::READING == state;
-}
-
-std::size_t MailReceiver::write(const char *s, std::size_t sz)
-{
-  return file ? fwrite(s, 1, sz, file.get()) : 0;
-}
 
 static struct event_base *mailEventBase = nullptr;
 static struct evconnlistener *mailListener = nullptr;
@@ -195,7 +35,7 @@ static bool MailEventThread(struct event_base *base)
 
 static void MailTalkIn(struct bufferevent *be, void *pdata)
 {
-  MailReceiver *mailConv = reinterpret_cast<MailReceiver*>(pdata);
+  mail::MailReceiver *mailConv = reinterpret_cast<mail::MailReceiver*>(pdata);
 
   // TODO: deal with multiple clients
   (void) mailConv;
@@ -223,7 +63,7 @@ static void MailTalkIn(struct bufferevent *be, void *pdata)
       if (!s) break;
       if (sz == 1 && strncmp(s.get(), ".", 1) == 0) {
         evbuffer_add_printf(output, "250 OK\r\n");
-        mailConv->state = MailState::DONE;
+        mailConv->state = mail::MailState::DONE;
         break;
       } else {
         // TODO: put into storage queue to improve concurrency
@@ -418,8 +258,12 @@ static void MailTalkIn(struct bufferevent *be, void *pdata)
 
 static void MailTalkEvent(struct bufferevent *be, short what, void *pdata)
 {
-  MailReceiver *mailConv = reinterpret_cast<MailReceiver*>(pdata);
+  mail::MailReceiver *mailConv = reinterpret_cast<mail::MailReceiver*>(pdata);
   bool finished = false;
+  if (what & BEV_EVENT_EOF) {
+    LogPrint("mail", "event: EOF\n");
+    finished = true;
+  }
   if (what & BEV_EVENT_ERROR) {
     LogPrint("mail", "error\n");
     finished = true;
@@ -433,11 +277,8 @@ static void MailTalkEvent(struct bufferevent *be, short what, void *pdata)
   if (what & BEV_EVENT_TIMEOUT) {
     LogPrint("mail", "event: TIMEOUT\n");
   }
-  if (what & BEV_EVENT_EOF) {
-    LogPrint("mail", "event: EOF\n");
-    finished = true;
-  }
   if (finished) {
+    // TODO: considering exceptions to avoid leaks
     bufferevent_free(be);
     delete mailConv;
     return;
@@ -448,7 +289,7 @@ static void MailDeal(struct evconnlistener *listener, evutil_socket_t fd, struct
 {
   // TODO: deal with many conversations
 
-  std::unique_ptr<MailReceiver> mailConv(new MailReceiver());
+  std::unique_ptr<mail::MailReceiver> mailConv(new mail::MailReceiver());
 
   struct event_base *base = evconnlistener_get_base(listener);
   struct bufferevent *conn = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE/*|BEV_OPT_THREADSAFE*/);
