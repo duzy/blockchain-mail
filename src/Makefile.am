@@ -162,6 +162,7 @@ BITCOIN_CORE_H = \
   zmq/zmqpublishnotifier.h \
   mail/server.h \
   mail/receiver.h \
+  mail/delivery.h \
   mail/util.h
 
 obj/build.h: FORCE
@@ -201,6 +202,7 @@ libbitcoin_server_a_SOURCES = \
   rpc/server.cpp \
   mail/server.cpp \
   mail/receiver.cpp \
+  mail/delivery.cpp \
   script/sigcache.cpp \
   script/ismine.cpp \
   timedata.cpp \

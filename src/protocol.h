@@ -240,6 +240,10 @@ extern const char *GETBLOCKTXN;
  * @since protocol version 70014 as described by BIP 152
  */
 extern const char *BLOCKTXN;
+/**
+ * Indicates a mail notification.
+ */
+extern const char *MAIL;
 };
 
 /* Get a vector of all valid message types (see above) */
@@ -268,6 +272,9 @@ enum ServiceFlags : uint64_t {
     // If this is turned off then the node will not service nor make xthin requests
     NODE_XTHIN = (1 << 4),
 
+    // NODE_MAIL means the node supports mail service
+    NODE_MAIL = (1 << 9), // TODO: extend node mail service (duzy)
+      
     // Bits 24-31 are reserved for temporary experiments. Just pick a bit that
     // isn't getting used, or one not being used much, and notify the
     // bitcoin-development mailing list. Remember that service bits are just

@@ -6,6 +6,7 @@
 
 #include "mail/server.h"
 #include "mail/receiver.h"
+#include "mail/delivery.h"
 #include <future>
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
@@ -33,6 +34,7 @@ static bool MailEventThread(struct event_base *base)
   return event_base_got_break(base) == 0;
 }
 
+// TODO: refactor work required, move most work into MailParseThread
 static void MailTalkIn(struct bufferevent *be, void *pdata)
 {
   mail::MailReceiver *mailConv = reinterpret_cast<mail::MailReceiver*>(pdata);
@@ -278,6 +280,9 @@ static void MailTalkEvent(struct bufferevent *be, short what, void *pdata)
     LogPrint("mail", "event: TIMEOUT\n");
   }
   if (finished) {
+    // TODO: move this code into delivery module (subsystem)
+    mail::deliver(mailConv->sender, mailConv->recpt);
+    
     // TODO: considering exceptions to avoid leaks
     bufferevent_free(be);
     delete mailConv;

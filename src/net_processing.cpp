@@ -2427,8 +2427,8 @@ bool ProcessMessages(CNode* pfrom, CConnman& connman)
 {
     const CChainParams& chainparams = Params();
     unsigned int nMaxSendBufferSize = connman.GetSendBufferSize();
-    //if (fDebug)
-    //    LogPrintf("%s(%u messages)\n", __func__, pfrom->vRecvMsg.size());
+    if (fDebug && pfrom->vRecvMsg.size() > 0)
+        LogPrintf("%s(%u messages)\n", __func__, pfrom->vRecvMsg.size());
 
     //
     // Message format
@@ -2455,10 +2455,10 @@ bool ProcessMessages(CNode* pfrom, CConnman& connman)
         // get next message
         CNetMessage& msg = *it;
 
-        //if (fDebug)
-        //    LogPrintf("%s(message %u msgsz, %u bytes, complete:%s)\n", __func__,
-        //            msg.hdr.nMessageSize, msg.vRecv.size(),
-        //            msg.complete() ? "Y" : "N");
+        if (fDebug)
+           LogPrintf("%s(message %u msgsz, %u bytes, complete:%s)\n", __func__,
+                   msg.hdr.nMessageSize, msg.vRecv.size(),
+                   msg.complete() ? "Y" : "N");
 
         // end, if an incomplete message is found
         if (!msg.complete())
@@ -2482,6 +2482,8 @@ bool ProcessMessages(CNode* pfrom, CConnman& connman)
             continue;
         }
         string strCommand = hdr.GetCommand();
+        if (fDebug) 
+          LogPrintf("%s(%s)\n", __func__, strCommand);
 
         // Message size
         unsigned int nMessageSize = hdr.nMessageSize;

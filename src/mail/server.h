@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_MAILSERVER_H
-#define BITCOIN_MAILSERVER_H
+#ifndef BITCOIN_MAIL_SERVER_H
+#define BITCOIN_MAIL_SERVER_H
 
 /** Start mail server subsystem.
  */
@@ -18,4 +18,4 @@ void InterruptMailServer();
  */
 void StopMailServer();
 
-#endif//BITCOIN_MAILSERVER_H
+#endif//BITCOIN_MAIL_SERVER_H

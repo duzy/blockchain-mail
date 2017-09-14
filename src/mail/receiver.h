@@ -62,4 +62,3 @@ namespace mail
 } // namespace mail
 
 #endif//BITCOIN_MAIL_RECEIVER_H
-
